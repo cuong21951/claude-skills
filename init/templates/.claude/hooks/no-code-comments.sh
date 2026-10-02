@@ -16,10 +16,12 @@ f="$(cat \
   | sed 's/.*: *"//; s/"$//; s/\\\\/\//g')"
 
 ext="${f##*.}"
-pattern=""
-case " $SLASH_EXTS " in *" $ext "*) pattern='^\+[[:space:]]*(//[^/]|/\*)|^\+.*[^:/]//[^/]' ;; esac
-case " $HASH_EXTS " in *" $ext "*) pattern='^\+[[:space:]]*#[^!]|^\+.*[^[:space:]][[:space:]]{2,}#[[:space:]]' ;; esac
-[ -z "$pattern" ] && exit 0
+comment=""
+blocks=""
+case " $SLASH_EXTS " in *" $ext "*) comment='^[[:space:]]*//[^/!]|[^:/\\]//[^/!]|/\*'; blocks=1 ;; esac
+case " $HASH_EXTS " in *" $ext "*) comment='^[[:space:]]*#[^!]|[^[:space:]][[:space:]][[:space:]]+#[[:space:]]' ;; esac
+[ -z "$comment" ] && exit 0
+strings='"([^"\\]|\\.)*"|`([^`\\]|\\.)*`|'"'([^'\\\\]|\\\\.)*'"
 
 # Added lines only, vs the last commit: a whole-file grep would flag comments that
 # were already there. A brand-new file is untracked, so `git diff` is empty; diff it
@@ -31,7 +33,28 @@ else
   diff="$(git -C "$d" diff --no-index -U0 /dev/null "$f" 2>/dev/null)"
 fi
 
-added="$(printf '%s\n' "$diff" | grep -E "$pattern" | grep -vE "${PRAGMA:-^$}")"
+# String literals are cut out before a line is judged, so "a//b" and f"{x}  # y" are
+# code. A block comment is judged as a whole: one PRAGMA line (a licence header) clears it.
+added="$(printf '%s\n' "$diff" | COMMENT="$comment" PRAGMA="${PRAGMA:-^$}" STRINGS="$strings" BLOCKS="$blocks" awk '
+  function release() { if (held != "") print held; held = ""; inblock = 0 }
+  BEGIN { comment = ENVIRON["COMMENT"]; pragma = ENVIRON["PRAGMA"]; strings = ENVIRON["STRINGS"]; blocks = ENVIRON["BLOCKS"] }
+  /^@@/ { release(); hunk = 1; next }
+  !hunk || !/^\+/ { next }
+  {
+    line = substr($0, 2)
+    code = line
+    gsub(strings, "", code)
+    if (inblock) {
+      if (line ~ pragma) held = ""
+      if (code ~ /\*\//) release()
+      next
+    }
+    if (line ~ pragma) next
+    if (blocks && code ~ /\/\*/ && code !~ /\*\//) { held = line; inblock = 1; next }
+    if (code ~ comment) print line
+  }
+  END { release() }
+')"
 [ -z "$added" ] && exit 0
 
 {

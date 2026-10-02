@@ -3,14 +3,20 @@
 # folder exists (create ticket-investigation/<id>/memory.md if missing) and inject
 # a reminder to investigate it (Rules.MD section 3). What counts as a ticket
 # reference is TICKET_MENTION / TICKET_ID in harness.conf.
-# ponytail: greps raw stdin instead of jq-parsing .prompt — no jq on Git Bash PATH.
+# Only the prompt text is read: a working directory named after a ticket is not a mention.
+# ponytail: pulls .prompt out of stdin with grep instead of jq — no jq on Git Bash PATH.
 here="$(cd "$(dirname "$0")" && pwd)"
 . "$here/harness.conf"
 root="${CLAUDE_PROJECT_DIR:-$(cd "$here/../.." && pwd)}/ticket-investigation"
 
-payload="$(cat)"
-case "$payload" in *task-notification*|*"SYSTEM NOTIFICATION"*) exit 0 ;; esac
-ids="$(printf '%s' "$payload" \
+prompt="$(grep -oE '"prompt"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"')"
+prompt="${prompt%%$'\n'*}"
+prompt="${prompt#*:}"
+prompt="${prompt#*\"}"
+prompt="${prompt%\"}"
+printf -v prompt '%b' "${prompt//\\\"/\"}"
+case "$prompt" in *task-notification*|*"SYSTEM NOTIFICATION"*) exit 0 ;; esac
+ids="$(printf '%s' "$prompt" \
   | grep -oiE "$TICKET_MENTION" \
   | grep -oE "$TICKET_ID" \
   | sort -u)"

@@ -16,9 +16,16 @@ const fail = (message) => {
 	console.error(message);
 	process.exit(1);
 };
+process.on("uncaughtException", (error) => fail(error.message));
 const slash = (p) => p.split(path.sep).join("/");
 const list = (value) => (Array.isArray(value) ? value : value.split(/[ ,]+/).filter(Boolean));
-const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+const readJson = (file) => {
+	try {
+		return JSON.parse(fs.readFileSync(file, "utf8"));
+	} catch (error) {
+		return fail(`${slash(file)}: ${error.message}`);
+	}
+};
 
 // ponytail: regexes and permission rules carry | and (), which a Windows node shim hands to
 // cmd.exe. Anything beyond a plain word comes in through --config, a JSON file with the same keys.
@@ -116,7 +123,7 @@ const trackedExts = () => {
 		.readdirSync(dir, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory() && fs.existsSync(path.join(dir, entry.name, ".git")))
 		.map((entry) => path.join(dir, entry.name));
-	const files = [dir, ...children].flatMap((repo) => (git(repo, "ls-files") ?? "").split("\n"));
+	const files = [dir, ...children].flatMap((repo) => (git(repo, "ls-files", "-z") ?? "").split("\0"));
 	return new Set(files.map((file) => path.extname(file).slice(1)));
 };
 
@@ -207,6 +214,10 @@ function installedSkills() {
 }
 
 function pending() {
+	const templateTokens = new Set(
+		scaffolded.flatMap((rel) => fs.readFileSync(path.join(templates, rel), "utf8").match(/\{\{\w+\}\}/g) ?? []),
+	);
+	const unfilled = (line) => line.includes("<!-- init:") || [...templateTokens].some((token) => line.includes(token));
 	return [...scaffolded, ...installedSkills()]
 		.filter((rel) => !rel.endsWith(".sh") && fs.existsSync(path.join(dir, rel)))
 		.flatMap((rel) =>
@@ -214,7 +225,7 @@ function pending() {
 				.readFileSync(path.join(dir, rel), "utf8")
 				.split("\n")
 				.map((line, index) => ({ line, where: `${slash(rel)}:${index + 1}` }))
-				.filter(({ line }) => /\{\{\w+\}\}|<!-- init:/.test(line))
+				.filter(({ line }) => unfilled(line))
 				.map(({ line, where }) => `${where}  ${line.trim().slice(0, 110)}`),
 		);
 }
@@ -238,12 +249,12 @@ function scaffold() {
 		SLASH_EXTS: opt["slash-exts"] ?? detect("slash"),
 		HASH_EXTS: opt["hash-exts"] ?? detect("hash"),
 	};
-	const render = (text) => text.replace(/\{\{(\w+)\}\}/g, (token, key) => tokens[key] ?? token);
+	const render = (text) => text.replace(/\r\n/g, "\n").replace(/\{\{(\w+)\}\}/g, (token, key) => tokens[key] ?? token);
 
 	for (const rel of scaffolded) {
 		copyOnce(rel, (target) => fs.writeFileSync(target, render(fs.readFileSync(path.join(templates, rel), "utf8"))));
 	}
-	mergeSettings(modes[mode].settings, [...tracker.ask(), ...opt.ask]);
+	mergeSettings(modes[mode].settings, [...tracker.ask(), ...[opt.ask].flat()]);
 	for (const name of skills) {
 		copyOnce(path.join(".claude", "skills", name), (target) =>
 			fs.cpSync(path.join(opt["skills-src"], name), target, { recursive: true }),
@@ -314,6 +325,10 @@ function check() {
 
 	for (const rel of scaffolded) expect(fs.existsSync(path.join(dir, rel)), `exists ${slash(rel)}`);
 	if (problems.length) fail(`\n${problems.length} files missing — run the scaffold first.`);
+
+	const entry = (file) => fs.readFileSync(path.join(dir, file), "utf8");
+	expect(/(^|\s)@AGENTS\.md\b/.test(entry("CLAUDE.md")), "CLAUDE.md imports AGENTS.md");
+	expect(/^## Mandatory Startup\s*$/m.test(entry("AGENTS.md")), "AGENTS.md carries the Mandatory Startup router");
 
 	const wired = [...new Set(Object.values(modes).map((mode) => path.join(dir, ".claude", mode.settings)))]
 		.filter((file) => fs.existsSync(file))

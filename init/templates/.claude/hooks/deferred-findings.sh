@@ -21,7 +21,7 @@ case "$f" in
 esac
 
 leaks="$(grep -niE 'flag (it )?separately|not my bug|separate (ticket|bug|defect)|follow-?up ticket|own (bug|ticket)|file a ticket|pre-existing bug' "$f" 2>/dev/null \
-  | grep -viE "$DISPOSITION")"
+  | grep -viwE "$DISPOSITION")"
 [ -z "$leaks" ] && exit 0
 
 {
