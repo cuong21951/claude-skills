@@ -8,14 +8,34 @@
 #
 # The flag is rewritten on every prompt, so intent never leaks past the turn it
 # was given in. It is keyed by project so two projects never share one intent.
-# ponytail: greps raw stdin instead of jq-parsing — no jq on Git Bash PATH.
+# Only the prompt text and the command text are read: a path, a description or a
+# commit message that happens to hold the word "push" decides nothing.
+# ponytail: pulls one JSON string field out of stdin with grep instead of jq —
+# no jq on Git Bash PATH.
 
 flag="${TMPDIR:-/tmp}/push-intent-$(printf '%s' "${CLAUDE_PROJECT_DIR:-$PWD}" | cksum | cut -d' ' -f1)"
 payload="$(cat)"
 
+read_field() {
+  value="$(grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"([^\"\\\\]|\\\\.)*\"" <<<"$payload")"
+  value="${value%%$'\n'*}"
+  value="${value#*:}"
+  value="${value#*\"}"
+  value="${value%\"}"
+  printf -v value '%b' "${value//\\\"/\"}"
+}
+
 case "$payload" in
   *'"hook_event_name":"UserPromptSubmit"'*|*'"hook_event_name": "UserPromptSubmit"'*)
-    if printf '%s' "$payload" | grep -qiE 'push|đẩy lên|create (a )?pr|make (a )?pr|raise (a )?pr|open (a )?pull|tạo pr|làm pr|mở pr|/pr\b'; then
+    read_field prompt
+    edge='[^[:alnum:]_./-]'
+    refused="(^|$edge)(do not|don[^[:space:]]{0,3}t|never|not|no|without|đừng|không|chưa|khoan)[[:space:]]+([^[:space:][:punct:]]+[[:space:]]+)?push[a-z]*"
+    not_a_request='push[[:space:]]+notifications?'
+    asks_push="(^|$edge)push($edge|\$)|đẩy lên"
+    asks_pr="(^|$edge)(create|make|raise|open|submit|tạo|làm|mở)[[:space:]]+((a|an|the|new)[[:space:]]+)*(pr|pull request)($edge|\$)|(^|[[:space:]])/pr([[:space:]]|\$)"
+    if sed -E "y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/; s/$refused/ /g; s/$not_a_request/ /g" <<<"$value" \
+      | grep -qE "$asks_push|$asks_pr"
+    then
       printf 'yes' > "$flag"
     else
       printf 'no' > "$flag"
@@ -24,8 +44,13 @@ case "$payload" in
     ;;
 esac
 
-# PreToolUse: only care about commands that publish to a remote.
-printf '%s' "$payload" | grep -qE 'git[^"]*\bpush\b|gh[^"]*\bpr create\b' || exit 0
+# PreToolUse: only care about commands that publish to a remote — `push` as git's own
+# subcommand (after any global options), not `stash push`, `--grep=push` or `push.default`.
+read_field command
+git_option="-[Cc][[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|--?[[:alnum:]-]+(=[^[:space:]]+)?"
+git_push="(^|[^[:alnum:]_.-])git([[:space:]]+($git_option))*[[:space:]]+push([^[:alnum:]_.=-]|\$)"
+pr_create="(^|[^[:alnum:]_.-])gh[[:space:]]+pr[[:space:]]+create([^[:alnum:]_.=-]|\$)"
+grep -qE "$git_push|$pr_create" <<<"$value" || exit 0
 
 [ "$(cat "$flag" 2>/dev/null)" = "yes" ] && exit 0
 

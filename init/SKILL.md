@@ -137,7 +137,9 @@ runs unasked. Take the write tool names from the connected server's own tool lis
 
 Output lines: `write` created from the template, `keep` already existed and was left alone,
 `merged` missing entries added. A `keep` on `AGENTS.md` or `CLAUDE.md` means the project had one:
-the existing file wins, and what happens to the harness entry is the § 2 answer.
+the existing file wins, and what happens to the harness entry is the § 2 answer. Until `CLAUDE.md`
+imports `AGENTS.md` and `AGENTS.md` carries `## Mandatory Startup`, § 6 stays red: nothing would
+load the harness.
 
 ## 4. Learn the project, then fill
 
@@ -199,8 +201,9 @@ doc whose citations do not hold goes back to its agent.
 node "${CLAUDE_SKILL_DIR}/scripts/scaffold.mjs" --dir "<root>" --check
 ```
 
-It checks every harness file exists, the hooks are wired, `.agents/` is ignored by git, no marker
-or `{{token}}` is left, and it runs each hook against a sample payload in a temp directory: a
+It checks every harness file exists, `CLAUDE.md` imports `AGENTS.md` and `AGENTS.md` carries the
+router, the hooks are wired, `.agents/` is ignored by git, no marker or template token is left,
+and it runs each hook against a sample payload in a temp directory: a
 push the prompt did not ask for is blocked, a comment in a covered file is blocked, a deferral
 with no disposition is blocked, the project's sample ticket id creates its folder and ordinary
 numbers do not. A `FAIL` line is fixed, not explained away. `Harness is in place.` is the only
