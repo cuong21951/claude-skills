@@ -137,9 +137,10 @@ runs unasked. Take the write tool names from the connected server's own tool lis
 
 Output lines: `write` created from the template, `keep` already existed and was left alone,
 `merged` missing entries added. A `keep` on `AGENTS.md` or `CLAUDE.md` means the project had one:
-the existing file wins, and what happens to the harness entry is the § 2 answer. Until `CLAUDE.md`
-imports `AGENTS.md` and `AGENTS.md` carries `## Mandatory Startup`, § 6 stays red: nothing would
-load the harness.
+the existing file wins, and what happens to the harness entry is the § 2 answer. Merging it means
+appending the sections of `${CLAUDE_SKILL_DIR}/templates/AGENTS.md` to the existing file with the
+project name filled in. Until `CLAUDE.md` imports `AGENTS.md` and `AGENTS.md` carries
+`## Mandatory Startup`, § 6 stays red: nothing would load the harness.
 
 ## 4. Learn the project, then fill
 
