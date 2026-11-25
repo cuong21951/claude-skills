@@ -20,6 +20,7 @@ Also here: `instructions/` (global `~/.claude` files: model routing, coding rule
 | `workitem` | Draft and create a bug or story in the shape the team's own items use. |
 | `ticket` | Post the plan or the root cause and fix on a work item, in the team's shape. |
 | `deep-review` | Whole-subsystem deep code review: reads the entire subsystem and the old version before judging the diff, sweeps call sites, multi-dimension finder agents with adversarial verification, reviews against what the ticket promised. |
+| `check-noti` | Read-only Azure DevOps sweep of everything waiting on you: comments and votes on your PRs, review requests, @mentions in PRs, work items and wiki, process gaps, stale items — one prioritized list with links and the skill to handle each. |
 | `investigate` | Structured bug/story investigation before any code is written. Produces root cause + minimal fix proposal, writes no code. |
 | `taste-review` | Diff review for taste: pattern consistency, modularity, minimal-diff discipline, performance. Complements bug-focused review. |
 | `myvoice` | Write messages in the user's own voice, learned from messages they actually wrote; asks which sources to learn from and how to read them. |
