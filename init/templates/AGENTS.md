@@ -13,7 +13,8 @@ Short mandatory entrypoint for AI work in this project. Detail lives in the owne
 | Editing code | `Design.MD` section of the area touched; `ReviewTaste.MD` § Always + the § Hard rules by area group matching the diff |
 | Adding a repeatable thing (endpoint, page, migration, command, business rule) | `Playbook.MD` recipe for that area, plus the row above |
 | Reviewing a diff | `ReviewTaste.MD` § Always + matching area group |
-| Git, commit, PR, ticket comment | `Rules.MD` § 3; the `pr`, `ticket`, `workitem` skills supersede it where they say so |
+| Git, commit, PR, ticket comment | `Rules.MD` § 3; the `pr`, `fix-comment`, `ticket`, `workitem` skills supersede it where they say so |
+| Fixing review comments on your own PR | the `fix-comment` skill |
 | Building or running tests | `Rules.MD` § 8, then the `test` skill |
 | Touching ANY environment | `Test.MD` § Environment Matrix |
 | Browser automation | `Test.MD` § Browser And Automation Traps, then the `test` skill |
@@ -41,7 +42,7 @@ Short mandatory entrypoint for AI work in this project. Detail lives in the owne
 - Keep non-secret credential context when useful, but never store or print raw passwords, client secrets, refresh tokens, bearer tokens, API keys, or full credential-bearing connection strings. Never echo any of them into evidence, commits, PR comments or work items.
 - Use the private secret-memory files under `.agents/` when credentials are needed; reference paths, not secret values. `.agents/` is never committed.
 <!-- init: ask the user which environments, if any, are pre-authorized for build and deploy without asking, and write it as one bullet. If they name none, write: "- No environment is pre-authorized for deploy; ask first." -->
-- Push and PR creation only when asked (the `pr` skill is that ask).
+- Push and PR creation only when asked (the `pr` and `fix-comment` skills are that ask).
 - Build and test with the commands in `Rules.MD` § 8 and report verification/skipped checks in the final response.
 
 <!-- init: tracker section. Heading `# <Tracker> (<org>, <project>)`, then the numbered facts an agent needs to call it correctly: the project/repo name to pass, team or label names, which MCP server or CLI to prefer, known tool quirks. Delete this marker if the project has no tracker. -->

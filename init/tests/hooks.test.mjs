@@ -219,6 +219,8 @@ describe("push-gate", () => {
 			["đẩy lên", "git push origin HEAD", "pass"],
 			["tạo PR", "gh pr create --fill", "pass"],
 			["/pr", "git push -u origin feature/x", "pass"],
+			["/fix-comment", "git push origin feature/x", "pass"],
+			["fix the review comments", "git push origin feature/x", "block"],
 			["create a PR", "gh pr create --fill", "pass"],
 			["open a PR for this", "gh pr create --fill", "pass"],
 			["fix it, don't ask, just push", "git push origin HEAD", "pass"],

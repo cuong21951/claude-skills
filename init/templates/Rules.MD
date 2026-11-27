@@ -17,7 +17,7 @@ These rules apply to AI coding work in this project. Keep this file for mandator
 
 - Do not ask for a ticket number. If the user gives one, the work is ticketed; otherwise continue without one.
 - Ticketed work: find or create `ticket-investigation/<id>/`, read its `memory.md` and notes before source investigation, and keep every generated script, screenshot, log and scratch file inside it, not in the project root.
-- Commit finished work locally, then stop and report. Do not push and do not create a PR until the user asks; invoking the `pr` skill is that ask.
+- Commit finished work locally, then stop and report. Do not push and do not create a PR until the user asks; invoking the `pr` or `fix-comment` skill is that ask.
 - Do not revert or overwrite the user's changes unless asked.
 
 <!-- init: Learn this project's git conventions from `git branch -r`, `git log -50` and the last 20 merged PRs: integration branch, branch naming, commit message format (title only or with body, prefixes, trailers), PR title and description convention, required reviewers, merge strategy, how a ticket is linked. Write each as a rule backed by what the history shows. -->

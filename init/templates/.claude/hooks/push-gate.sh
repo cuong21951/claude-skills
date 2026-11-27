@@ -32,7 +32,7 @@ case "$payload" in
     refused="(^|$edge)(do not|don[^[:space:]]{0,3}t|never|not|no|without|đừng|không|chưa|khoan)[[:space:]]+([^[:space:][:punct:]]+[[:space:]]+)?push[a-z]*"
     not_a_request='push[[:space:]]+notifications?'
     asks_push="(^|$edge)push($edge|\$)|đẩy lên"
-    asks_pr="(^|$edge)(create|make|raise|open|submit|tạo|làm|mở)[[:space:]]+((a|an|the|new)[[:space:]]+)*(pr|pull request)($edge|\$)|(^|[[:space:]])/pr([[:space:]]|\$)"
+    asks_pr="(^|$edge)(create|make|raise|open|submit|tạo|làm|mở)[[:space:]]+((a|an|the|new)[[:space:]]+)*(pr|pull request)($edge|\$)|(^|[[:space:]])/(pr|fix-comment)([[:space:]]|\$)"
     if sed -E "y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/; s/$refused/ /g; s/$not_a_request/ /g" <<<"$value" \
       | grep -qE "$asks_push|$asks_pr"
     then
