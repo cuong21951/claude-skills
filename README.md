@@ -15,6 +15,7 @@ Also here: `instructions/` (global `~/.claude` files: model routing, coding rule
 |---|---|
 | `init` | Set up the agent harness in any project: investigate it (code host, tracker, connected tools, CI, review habits), ask only what cannot be found, scaffold skeleton docs, settings ask-gates and four enforcement hooks, then fill the docs and the project skills below from what the project itself shows. Replaces the built-in `/init`. |
 | `pr` | Create a pull request following the project's own conventions, with the ticket linked and auto-merge left off. |
+| `fix-comment` | Handle the review comments on your own PR: fix, push, reply and resolve; out-of-scope ones become a work item; each fixed comment is triaged into a scoped, generic ReviewTaste rule, a Playbook "Do NOT", or ticket notes. |
 | `test` | Verify a change in every layer the project has — suites, API, UI, logs, stored data — and report each separately. |
 | `deploy` | Build and deploy to an environment the way the project does it, then prove it landed. |
 | `workitem` | Draft and create a bug or story in the shape the team's own items use. |
@@ -35,7 +36,8 @@ git clone https://github.com/cuong21951/claude-skills ~/claude-skills
 cp -r ~/claude-skills/init ~/.claude/skills/
 ```
 
-Then run `/init` inside a project. It copies `pr`, `test`, `deploy`, `workitem` and `deep-review`
-into that project's `.claude/skills/` and fills them for it.
+Then run `/init` inside a project. It copies `pr`, `fix-comment`, `test`, `deploy`, `workitem`, `ticket`, `deep-review` and
+`check-noti` into that project's `.claude/skills/` and fills them for it, and adds the Playwright MCP
+server to the project's `.mcp.json` when the project has a web UI.
 
 Any other skill, for all projects: `cp -r ~/claude-skills/<skill> ~/.claude/skills/`.

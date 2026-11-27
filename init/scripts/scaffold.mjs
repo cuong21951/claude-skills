@@ -45,7 +45,8 @@ const opt = {
 	tracker: "none",
 	"ado-servers": "azure-devops",
 	ask: [],
-	skills: "pr,test,deploy,workitem,deep-review",
+	mcp: [],
+	skills: "pr,fix-comment,test,deploy,workitem,ticket,deep-review,check-noti",
 	"skills-src": path.join(os.homedir(), "claude-skills"),
 	...(flags.config ? readJson(flags.config) : {}),
 	...flags,
@@ -66,7 +67,11 @@ const isRepo = git(dir, "rev-parse", "--show-toplevel") !== null;
 
 const adoWriteTools = [
 	"repo_create_branch",
+	"repo_pull_request_write",
 	"repo_pull_request_thread_write",
+	"repo_file_write",
+	"wit_work_item_attachment_upload",
+	"wit_work_item_attachment_link",
 	"testplan_test_case_write",
 	"testplan_test_plan_write",
 	"testplan_test_suite_write",
@@ -114,6 +119,10 @@ const trackers = {
 	},
 };
 
+const mcpCatalog = {
+	playwright: { command: "npx", args: ["-y", "@playwright/mcp@latest"], ignore: [".playwright-mcp/"] },
+};
+
 const commentStyles = {
 	slash: list("cs js jsx mjs cjs ts tsx java go rs kt swift c cc cpp h hpp php scala dart"),
 	hash: list("py rb"),
@@ -139,6 +148,7 @@ const modes = {
 			{
 				file: () => path.join(dir, ".gitignore"),
 				lines: [".agents/", ".claude/settings.local.json", "ticket-investigation/"],
+				ignore: [],
 			},
 			{ file: () => path.join(dir, ".gitattributes"), lines: [".claude/hooks/* text eol=lf"] },
 		],
@@ -149,6 +159,7 @@ const modes = {
 			{
 				file: () => path.resolve(dir, git(dir, "rev-parse", "--git-path", "info/exclude")),
 				lines: harnessPaths,
+				ignore: [".mcp.json"],
 			},
 		],
 	},
@@ -181,6 +192,40 @@ function mergeSettings(file, ask) {
 	fs.mkdirSync(path.dirname(target), { recursive: true });
 	fs.writeFileSync(target, `${JSON.stringify(settings, null, 2)}\n`);
 	console.log(`merged  .claude/${file} (${settings.permissions.ask.length} ask rules)`);
+}
+
+function mcpServers() {
+	const entries = Array.isArray(opt.mcp) || typeof opt.mcp === "string"
+		? list(opt.mcp).map((name) => [name, mcpCatalog[name]])
+		: Object.entries(opt.mcp);
+	const unknown = entries.filter(([, server]) => !server).map(([name]) => name);
+	if (unknown.length) fail(`mcp servers not in the catalog: ${unknown.join(", ")} (known: ${Object.keys(mcpCatalog).join(", ")})`);
+	return Object.fromEntries(entries);
+}
+
+function mergeMcp(servers, mode) {
+	const names = Object.keys(servers);
+	if (!names.length) return;
+	const rel = ".mcp.json";
+	const target = path.join(dir, rel);
+	if (mode === "local" && git(dir, "ls-files", "--error-unmatch", rel) !== null) {
+		const adds = names.map((name) => `claude mcp add --scope local ${name} -- ${[servers[name].command, ...servers[name].args].join(" ")}`);
+		console.log(`skip    ${rel} (tracked by the team; add it locally: ${adds.join(" ; ")})`);
+		return;
+	}
+	const config = fs.existsSync(target) ? readJson(target) : {};
+	config.mcpServers ??= {};
+	const added = names.filter((name) => !(name in config.mcpServers));
+	if (!added.length) {
+		console.log(`keep    ${rel} (already has ${names.join(", ")})`);
+		return;
+	}
+	for (const name of added) {
+		const { ignore, ...server } = servers[name];
+		config.mcpServers[name] = server;
+	}
+	fs.writeFileSync(target, `${JSON.stringify(config, null, 2)}\n`);
+	console.log(`merged  ${rel} (+${added.join(", ")})`);
 }
 
 function mergeHookGroup(existing, group) {
@@ -235,6 +280,7 @@ function scaffold() {
 	const mode = opt.mode ?? (isRepo ? fail("mode tracked|local is required inside a git repo") : "none");
 	if (!(mode in modes)) fail(`mode must be one of: ${Object.keys(modes).join(", ")}`);
 	const skills = list(opt.skills);
+	const servers = mcpServers();
 	const missing = skills.filter((name) => !fs.existsSync(path.join(opt["skills-src"], name, "SKILL.md")));
 	if (missing.length) fail(`skills not found in ${opt["skills-src"]}: ${missing.join(", ")}`);
 
@@ -254,13 +300,18 @@ function scaffold() {
 	for (const rel of scaffolded) {
 		copyOnce(rel, (target) => fs.writeFileSync(target, render(fs.readFileSync(path.join(templates, rel), "utf8"))));
 	}
-	mergeSettings(modes[mode].settings, [...tracker.ask(), ...[opt.ask].flat()]);
+	mergeSettings(modes[mode].settings, opt["ask-gates"] === false ? [] : [...tracker.ask(), ...[opt.ask].flat()]);
 	for (const name of skills) {
 		copyOnce(path.join(".claude", "skills", name), (target) =>
 			fs.cpSync(path.join(opt["skills-src"], name), target, { recursive: true }),
 		);
 	}
-	for (const target of modes[mode].lineFiles) mergeLines(target);
+	mergeMcp(servers, mode);
+	const serverIgnores = Object.values(servers).flatMap((server) => server.ignore ?? []);
+	for (const target of modes[mode].lineFiles) {
+		const extra = target.ignore && serverIgnores.length ? [...target.ignore, ...serverIgnores] : [];
+		mergeLines({ ...target, lines: [...target.lines, ...extra] });
+	}
 
 	const todo = pending();
 	console.log(`\n${todo.length} fill markers to resolve:`);

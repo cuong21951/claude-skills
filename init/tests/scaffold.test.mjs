@@ -694,3 +694,62 @@ test("20d check fails when a hook script is broken (push-gate no longer blocks)"
 	assert.equal(res.status, 1);
 	assert.match(res.stdout, /FAIL\s+push-gate blocks/);
 });
+
+test("30a mcp playwright in tracked mode writes .mcp.json, ignores .playwright-mcp/ and checks green", () => {
+	const dir = repo();
+	const res = scaffoldAndResolve(dir, { ...tracked, mcp: ["playwright"] });
+	assert.match(res.stdout, /merged\s+\.mcp\.json \(\+playwright\)/);
+	const server = JSON.parse(fs.readFileSync(path.join(dir, ".mcp.json"), "utf8")).mcpServers.playwright;
+	assert.deepEqual(server, { command: "npx", args: ["-y", "@playwright/mcp@latest"] });
+	assert.ok(fs.readFileSync(path.join(dir, ".gitignore"), "utf8").split("\n").includes(".playwright-mcp/"));
+	assertGreen(check(dir));
+});
+
+test("30b mcp merges into an existing .mcp.json, keeps the servers already there", () => {
+	const dir = repo({ "app.js": "export const x = 1;\n", ".mcp.json": '{"mcpServers":{"playwright":{"command":"mine"},"db":{"command":"db"}}}' });
+	const res = scaffold(dir, { ...tracked, mcp: "playwright" });
+	assert.match(res.stdout, /keep\s+\.mcp\.json/);
+	const servers = JSON.parse(fs.readFileSync(path.join(dir, ".mcp.json"), "utf8")).mcpServers;
+	assert.deepEqual(servers, { playwright: { command: "mine" }, db: { command: "db" } });
+});
+
+test("30c local mode leaves a team-tracked .mcp.json alone and prints the local add command", () => {
+	const dir = repo({ "app.js": "export const x = 1;\n", ".mcp.json": '{"mcpServers":{}}' });
+	const before = fs.readFileSync(path.join(dir, ".mcp.json"), "utf8");
+	const res = scaffold(dir, { mode: "local", tracker: "none", mcp: ["playwright"] });
+	assert.equal(res.status, 0, explain(res));
+	assert.match(res.stdout, /skip\s+\.mcp\.json .*claude mcp add --scope local playwright -- npx -y @playwright\/mcp@latest/);
+	assert.equal(fs.readFileSync(path.join(dir, ".mcp.json"), "utf8"), before);
+	assert.equal(porcelain(dir), "");
+});
+
+test("30d local mode writes an untracked .mcp.json and git status stays empty", () => {
+	const dir = repo();
+	scaffold(dir, { mode: "local", tracker: "none", mcp: ["playwright"] });
+	assert.ok(fs.existsSync(path.join(dir, ".mcp.json")));
+	fs.mkdirSync(path.join(dir, ".playwright-mcp"));
+	fs.writeFileSync(path.join(dir, ".playwright-mcp", "shot.png"), "x");
+	assert.equal(porcelain(dir), "");
+});
+
+test("30e no mcp key writes no .mcp.json; an unknown server fails cleanly", () => {
+	const dir = repo();
+	scaffold(dir, tracked);
+	assert.ok(!fs.existsSync(path.join(dir, ".mcp.json")));
+	assertCleanFailure(scaffold(plain(), { tracker: "none", mcp: ["nope"] }));
+});
+
+test("31 default skills include check-noti with its scan script and an unresolved marker", () => {
+	const dir = plain();
+	const res = scaffold(dir, { tracker: "ado" });
+	assert.equal(res.status, 0, explain(res));
+	assert.ok(fs.existsSync(path.join(dir, ".claude", "skills", "check-noti", "scripts", "scan.mjs")));
+	assert.match(res.stdout, /\.claude\/skills\/check-noti\/SKILL\.md:\d+/);
+});
+
+test('32 "ask-gates": false adds no tracker ask rules and keeps existing ones', () => {
+	const dir = plain({ ".claude/settings.json": '{"permissions":{"ask":["Bash(mine:*)"]}}' });
+	const res = scaffold(dir, { tracker: "ado", "ado-servers": "alpha", ask: ["Bash(x:*)"], "ask-gates": false });
+	assert.match(res.stdout, /\(1 ask rules\)/);
+	assert.deepEqual(settingsOf(dir).permissions.ask, ["Bash(mine:*)"]);
+});

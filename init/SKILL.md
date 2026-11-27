@@ -1,6 +1,6 @@
 ---
 name: init
-description: Set up the agent harness in the current project by investigating the project first, asking only what investigation cannot answer, and filling every doc from what was learned — detect the code host, ticket tracker, connected MCP servers and CLIs, CI and review habits; scaffold the AGENTS.md router and CLAUDE.md stub, the owned docs (Rules, Design, Test, ReviewTaste, Playbook, Deploy) as skeletons, .claude settings with tracker-write ask-gates and four enforcement hooks (push gate, ticket reminder, no code comments, deferred findings), the project skills, ticket-investigation/ and the private .agents/ folder; then read the code, repo docs, git history, PR review comments and CI config and write each doc from them. Use whenever the user says "/init", "init", "init this project", "set up the harness", "apply my harness", "bootstrap this repo", "khởi tạo project", "áp harness vào project này", "setup harness", or starts work in a project that has no AGENTS.md. Replaces the built-in /init. Never overwrites an existing file; safe to re-run.
+description: Set up the agent harness in the current project by investigating the project first, asking only what investigation cannot answer, and filling every doc from what was learned — detect the code host, ticket tracker, connected MCP servers and CLIs, CI and review habits; scaffold the AGENTS.md router and CLAUDE.md stub, the owned docs (Rules, Design, Test, ReviewTaste, Playbook, Deploy) as skeletons, .claude settings with tracker-write ask-gates and four enforcement hooks (push gate, ticket reminder, no code comments, deferred findings), the Playwright MCP server in .mcp.json when the project has a web UI, the project skills (pr, fix-comment, test, deploy, workitem, ticket, deep-review, check-noti), ticket-investigation/ and the private .agents/ folder; then read the code, repo docs, git history, PR review comments and CI config and write each doc from them. Use whenever the user says "/init", "init", "init this project", "set up the harness", "apply my harness", "bootstrap this repo", "khởi tạo project", "áp harness vào project này", "setup harness", or starts work in a project that has no AGENTS.md. Replaces the built-in /init. Never overwrites an existing file; safe to re-run.
 argument-hint: "[check]"
 ---
 
@@ -45,6 +45,7 @@ Argument `check` runs § 6 only.
 | Shape of a ticket id | The same history. The pattern comes from real ids, not from a guess |
 | Connected tools | `claude mcp list` and the MCP tools this session exposes; CLIs and whether they are logged in: `gh auth status`, `az account show`, `glab auth status`, a Jira or Linear CLI |
 | CI and deploy | Workflow and pipeline files, hosting config, env examples |
+| Web UI | Front-end code (`.html`, `.aspx`, `.cshtml`, `.razor`, `.jsx`, `.tsx`, `.vue`, `.svelte`), a dev-server script, an existing Playwright or Cypress suite; whether a `playwright` MCP server is already connected |
 | Languages and comment habit | `git ls-files` by extension; how many comment lines the 20 most recently changed source files carry |
 | Rule files already present | `AGENTS.md`, `CLAUDE.md`, editor or other-agent rule files, a contributing guide |
 | Review habit | Whether merged PRs carry human review comments, and where reviews happen |
@@ -95,7 +96,8 @@ and permission rules go in the file, never on the command line — a shell mangl
   "name": "<project name>",
   "mode": "tracked",
   "tracker": "github",
-  "skills": "pr,test,deploy,workitem,deep-review"
+  "skills": "pr,fix-comment,test,deploy,workitem,ticket,deep-review,check-noti",
+  "mcp": ["playwright"]
 }
 ```
 
@@ -116,6 +118,10 @@ and permission rules go in the file, never on the command line — a shell mangl
 | Any other tracker (Jira, Linear, GitLab, …) | `"tracker": "none"`, then `ticket-mention`, `ticket-id`, `ticket-sample`, `disposition` built from the real ids, and `ask`: one rule per write tool or CLI verb found |
 | No tracker | `"tracker": "none"`, and drop `workitem` from `skills` |
 | No deploy pipeline | Drop `deploy` from `skills` |
+| Tracker is not Azure DevOps | Drop `check-noti` from `skills`: its scan script reads Azure DevOps only |
+| Web UI found | `"mcp": ["playwright"]`. Written to the project `.mcp.json` (merged, never replacing a server already there; `.playwright-mcp/` is ignored). In `local` mode a team-tracked `.mcp.json` is left alone and the `claude mcp add --scope local` line is printed instead. Claude Code asks the user to approve the server on the next start |
+| No web UI | Leave `mcp` out |
+| The user chose to let tracker writes run unasked (their settings already carry no `ask` rules for them) | `"ask-gates": false`: no tracker ask rules are added; existing ones are kept |
 | The user turned the comment ban off | `"slash-exts": ""`, `"hash-exts": ""` |
 | Comment-ban extensions | Detected from `git ls-files`; set `slash-exts` / `hash-exts` only to override |
 
@@ -169,9 +175,12 @@ marker. Fill it in the same pass, from probes that worked and from the docs just
 | Skill | Its block holds |
 | --- | --- |
 | `pr` | The exact code-host calls: read a ticket, create a PR with the ticket linked, add reviewers, read it back |
-| `test` | The layers this project has, how each is run or reached, what a pass looks like |
+| `fix-comment` | The exact code-host calls: list a PR's threads with paging, tell human from system/bot threads, reply, set a thread's status or resolve it, read votes; whether approvals reset on push; the locally cloned repos |
+| `test` | The layers this project has, how each is run or reached, what a pass looks like; the UI layer names the `playwright` MCP server as the browser tool when it was set up |
+| `check-noti` | The exact scan command: org, project, tenant when it is not the default, the local wiki clone; orgs scanned only on request |
 | `deploy` | The exact CI calls: queue a build, queue a deploy, read a run's status and resolved version |
 | `workitem` | The shape of the team's recent bugs and stories, required fields, the create and link calls |
+| `ticket` | The team's comment shapes from ten recently closed items; the done-for-development state, the fields it requires and how the team fills each, learned from the 100 most recent items of each type that reached it; the comment and state-update calls |
 
 Fan out one subagent per doc or skill, all in one message; route by `~/.claude/model-routing.md`.
 Each brief carries the file path, the sources that feed it, the access rung to use, "edit only
@@ -224,7 +233,9 @@ passing result.
 
 - Never overwrite, never delete. A wrong template is fixed in this skill, not by replacing a project file.
 - No commit, no push, no tracker write. Probes and the review sweep only read.
-- Do not connect an MCP server, log a CLI in, or store a token yourself; give the user the command.
+- Do not log a CLI in, store a token, or run `claude mcp add` yourself; give the user the command.
+  The one exception is a server from the scaffold's catalog (`playwright`) written to `.mcp.json`
+  through `"mcp"`: it needs no credential and Claude Code asks the user before it starts.
 - `.agents/` is ignored before anything is put in it. No credential goes in a doc, a skill or a hook.
 - Nothing is copied in from another project: no rule, example, hostname or name. If a doc
   sentence cannot be traced to this project or to the user, it does not belong in the doc.
